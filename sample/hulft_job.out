@@ -1,0 +1,10 @@
+#
+# ID=SND_JOB_A
+#
+
+JOB=SND_JOB_A
+JOB DEF
+/etc/bin/job.sh
+DEFEND
+COMMENT=JOB_A
+END

@@ -1,0 +1,5 @@
+"C:\HULFT Family\hulft8\bin\utligen.exe" -f C:\Temp\hulft_hst.out -i hst -id "*"
+"C:\HULFT Family\hulft8\bin\utligen.exe" -f C:\Temp\hulft_job.out -i job -id "*"
+"C:\HULFT Family\hulft8\bin\utligen.exe" -f C:\Temp\hulft_rcv.out -i rcv -id "*"
+"C:\HULFT Family\hulft8\bin\utligen.exe" -f C:\Temp\hulft_snd.out -i snd -id "*"
+"C:\HULFT Family\hulft8\bin\utligen.exe" -f C:\Temp\hulft_tgrp.out -i tgrp -id "*"
