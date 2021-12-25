@@ -1,6 +1,13 @@
 # HulftCheck
 HULFTの集信・配信定義を一覧で表示します。
 
+Onlineで実行する場合はこちらから
+
+ 「[HulftCheck：https://gearsns.github.io/HulftCheck/](https://gearsns.github.io/HulftCheck/)」
+
+※指定したファイルはサーバーにアップロードされることはありません。<br>
+不安な方は、「hulft_check.html」をダウンロードしてローカル環境で実行してください。
+
 ## Usage
 
 1. HULFTの情報を取得
