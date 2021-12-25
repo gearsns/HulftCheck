@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<meta charset="UTF-8">
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<title>HULFT定義確認</title>
+<style>
+    * {
+        padding: 1px;
+        margin: 0
+    }
+    
+    table {
+        border-collapse: collapse;
+        white-space: nowrap;
+        border-top: 1px solid #ddd;
+    }
+    
+    tr,
+    td,
+    th {
+        border: #000 1px solid;
+        vertical-align: top;
+        text-align: left;
+    }
+    
+    tr.JT_TST {
+        background-color: #eee;
+    }
+    
+    tr.JT_TST>table {
+        background-color: #eee;
+    }
+    
+    .error {
+        background-color: #fee;
+    }
+    
+    span.error {
+        color: #f00;
+        font-weight: bold
+    }
+    
+    #DIR {
+        width: 40em;
+    }
+    
+    #HOST {
+        width: 40em;
+    }
+    
+    hr {
+        clear: both;
+        border: #ddd 1px solid;
+        height: 1px;
+        padding: 0;
+        margin: 2px;
+    }
+    
+    table.filter_table {
+        margin-left: 10px;
+    }
+    
+    table.radio_table {
+        border-collapse: collapse;
+        background: #fff;
+        border-top: 1px solid #ddd;
+        float: left;
+        margin: 0 2px 4px 0;
+    }
+    
+    table.radio_table tr td,
+    table.radio_table tr th {
+        padding: 10px;
+        vertical-align: top;
+        text-align: left;
+    }
+    
+    table tr th {
+        background: #ddd;
+        color: #555;
+        font-weight: bold;
+    }
+    
+    table.radio_table tr td {
+        cursor: pointer;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    table.radio_table tr:hover {
+        background: #323232;
+        color: #fff;
+    }
+    
+    a,
+    a:visited {
+        text-decoration: none;
+        color: #000;
+    }
+    
+    a:hover {
+        color: #fff;
+    }
+</style>
+HULFTファイルフォルダを指定してください。<br>
+<input id="file" type="file" name="upfile[]" webkitdirectory>
+<hr>
+<div id="content"></div>
+<script>
+    document.getElementById('file').addEventListener('change', ev => {
+        const decodeAsText = (arrayBuffer, encoding = null) => new TextDecoder(encoding).decode(arrayBuffer);
+        let data = {};
+        for (let i = 0; i < ev.target.files.length; i++) {
+            let file = ev.target.files[i];
+            let relativePath = file.webkitRelativePath;
+            let fileReader = new FileReader();
+            fileReader.onload = event => {
+                if (relativePath.match(/hulft_(.*).out$/)) {
+                    let text = event.target.result;
+                    data[RegExp.$1] = loaddata(decodeAsText(text, 'shift-jis'));
+                    if (data['hst'] &&
+                        data['job'] &&
+                        data['rcv'] &&
+                        data['snd'] &&
+                        data['tgrp']
+                    ) {
+                        createDom(
+                            data['hst'],
+                            data['job'],
+                            data['rcv'],
+                            data['snd'],
+                            data['tgrp']
+                        );
+                    }
+                }
+            }
+            fileReader.readAsArrayBuffer(file);
+        }
+
+    });
+
+    function loaddata(text) {
+        let data = {};
+        let id = '';
+        let range_key = '';
+        let range = null;
+        let attriblist = {};
+        for (let line of text.split(/\r\n|\r|\n/)) {
+            line = line.trimEnd();
+            if (id.length === 0) {
+                if (line.match(/# ID=(.*?)$/)) {
+                    id = RegExp.$1;
+                    data[id] = {};
+                    range = null;
+                }
+            } else {
+                if (range) {
+                    if (line.match(/^DEFEND$/)) {
+                        data[id][range_key] = range;
+                        range = null;
+                    } else if (line.match(/^ *(.*?)$/)) {
+                        range.push(RegExp.$1);
+                    }
+                } else {
+                    if (line.match(/^END$/)) {
+                        id = '';
+                    } else if (line.match(/^(.*?)=(.*?)$/)) {
+                        let k = RegExp.$1;
+                        let v = RegExp.$2;
+                        data[id][k] = v;
+                        attriblist[k] = 1;
+                    } else if (line.match(/^(.*?) DEF$/)) {
+                        let k = `${RegExp.$1}_LIST`
+                        range_key = k;
+                        attriblist[k] = 1;
+                        range = [];
+                    }
+                }
+            }
+        }
+        let out = [];
+        for (const key of Object.keys(data)) {
+            out.push(data[key]);
+        }
+        return [Object.keys(attriblist), out];
+    }
+
+    async function createDom(hst, job, rcv, snd, grp) {
+        const hst_key = "HOST	COMMENT	HOSTTYPE	KCODETYPE	RCVPORT	REQPORT	JISYEAR	CONNECTTYPE	HOSTSPSNUM	SENDPERMIT	HULJOBPERMIT	HULSNDRCPERMIT	HULRJOBPERMIT	USRNOTIFY".split(/\t/);
+        const snd_key = "SNDFILE	COMMENT	FILENAME	GRPID	DISP_JOBID	CODESET	PASSWORD	DBID	TRANSTYPE	TRANSPRTY	INTERVAL	BLOCKLEN	BLOCKCNT	COMP	FMTID	DISP_EJOBID	KJCHNGE	CLEAR	COMPSIZE	SHIFTTRANSACT	DISP_PREJOBID".split(/\t/);
+        const rcv_key = "RCVFILE	COMMENT	FILENAME	GRPID	DISP_JOBID	CODESET	PASSWORD	OWNER	GROUP	PERM	TRANSMODE	ABNORMAL	RCVTYPE	DISP_EJOBID	GENCTL	JOBWAIT	GENMNGNO	DATAVERIFY".split(/\t/);
+        const job_key = "JOB	JOB_LIST	COMMENT".split(/\t/);
+        const snd_fname = {
+            'SNDFILE': '送信ファイルID',
+            'COMMENT': 'コメント',
+            'FILENAME': '配信ファイル名',
+            'GRPID': '転送グループＩＤ',
+            'DISP_JOBID': '正常時ジョブＩＤ',
+            'CODESET': 'EBCDICコードセット',
+            'PASSWORD': '暗号キー',
+            'DBID': '連携ＤＢＩＤ',
+            'TRANSTYPE': '転送タイプ',
+            'TRANSPRTY': '転送優先度',
+            'INTERVAL': '転送間隔',
+            'BLOCKLEN': '転送ブロック長',
+            'BLOCKCNT': '転送ブロック数',
+            'COMP': '圧縮レベル',
+            'FMTID': 'M/フォーマットＩＤ',
+            'DISP_EJOBID': '異常時ジョブＩＤ',
+            'KJCHNGE': 'コード変換',
+            'CLEAR': '配信ファイルの扱い',
+            'COMPSIZE': '圧縮単位',
+            'SHIFTTRANSACT': 'シフトコードの扱い',
+            'DISP_PREJOBID': '配信前ジョブＩＤ'
+        };
+        const rcv_fname = {
+            'RCVFILE': '集信ファイルＩＤ',
+            'COMMENT': 'コメント',
+            'FILENAME': 'ファイル名',
+            'GRPID': '転送グループＩＤ',
+            'DISP_JOBID': '正常時ジョブＩＤ',
+            'CODESET': 'EBCDICコードセット',
+            'PASSWORD': '暗号キー',
+            'OWNER': 'オーナー名',
+            'GROUP': 'グループ名',
+            'PERM': 'パーミッション',
+            'TRANSMODE': '登録モード ',
+            'ABNORMAL': '異常時の処置',
+            'RCVTYPE': '集信形態',
+            'DISP_EJOBID': '異常時ジョブＩＤ',
+            'GENCTL': '世代管理',
+            'JOBWAIT': '集信完了通知',
+            'GENMNGNO': '世代管理数',
+            'DATAVERIFY': 'データ検証'
+        }
+        let html = [];
+        html.push("<table>");
+        for (var item of hst[1]) {
+            let hst_list_grp = [];
+            for (var grp_item of grp[1]) {
+                if (grp_item['SERVER_LIST'] && grp_item['SERVER_LIST'].indexOf(item['HOST']) >= 0) {
+                    hst_list_grp.push(grp_item);
+                }
+            }
+            html.push("<tr><th>" + hst_key.join("<th>"));
+            if (hst_list_grp.length === 0) {
+                html.push("<tr><td>" + hst_key.map(fld => item_s(item[fld])).join("<td>"));
+            } else {
+                html.push("<tr><td rowspan=2>" + hst_key.map(fld => item_s(item[fld])).join("<td>"));
+                html.push(`<tr><td colspan=${hst_key.length - 1}>`);
+                for (var grp_item of hst_list_grp) {
+                    html.push('<table class="hst_list_grp">');
+                    html.push("<tr><th>" + grp[0].join("<th>"));
+                    const grp_list_rcv = rcv[1].filter(rcv_item => rcv_item['GRPID'] == grp_item['GRP']);
+                    const grp_list_snd = snd[1].filter(snd_item => snd_item['GRPID'] == grp_item['GRP']);
+                    if (grp_list_rcv.length === 0 && grp_list_snd.length === 0) {
+                        html.push("<tr><td>" + grp[0].map(fld => item_s(grp_item[fld])).join("<td>"));
+                    } else if (grp_list_rcv.length === 0 && grp_list_snd.length === 0) {
+                        html.push("<tr><td rowspan=2>" + grp[0].map(fld => item_s(grp_item[fld])).join("<td>"));
+                    } else {
+                        html.push("<tr><td rowspan=3>" + grp[0].map(fld => item_s(grp_item[fld])).join("<td>"));
+                    }
+                    if (grp_list_rcv.length === 0) {
+
+                    } else {
+                        html.push(`<tr><td colspan=${grp[0].length - 1}><table class="grp_list_rcv">`);
+                        html.push("<tr><th>" + rcv_key.map(key => rcv_fname[key] || key).join("<th>"));
+                        for (const rcv_item of grp_list_rcv) {
+                            rcv_item['DISP_JOBID'] = rcv_item['JOBID'];
+                            rcv_item['DISP_EJOBID'] = rcv_item['EJOBID'];
+                            let rcv_list_job = job[1].filter(job_item => job_item['JOB'] == rcv_item['JOBID']);
+                            let rcv_list_ejob = job[1].filter(job_item => job_item['JOB'] == rcv_item['EJOBID']);
+                            let job_type = 'JT_NOR';
+                            if (rcv_item['RCVFILE'].match(/^T/)) {
+                                job_type = 'JT_TST';
+                            }
+                            console.log("OK"+rcv_list_job.length);
+                            if (rcv_list_job.length === 0 && (rcv_item['JOBID'] || '').trim().length !== 0) {
+                                job_type += " error";
+                                rcv_item['DISP_JOBID'] = `<span class='error'>${rcv_item['JOBID']}</span>`;
+                            }
+                            if (rcv_list_ejob.length === 0 && (rcv_item['EJOBID'] || '').trim().length !== 0) {
+                                job_type += " error";
+                                rcv_item['DISP_EJOBID'] = `<span class='error'>${rcv_item['EJOBID']}</span>`;
+                            }
+                            rcv_list_job = rcv_list_job.concat(rcv_list_ejob);
+                            if (rcv_list_job.length === 0) {
+                                html.push(`<tr class='${job_type}'><td>`);
+                                html.push(rcv_key.map(fld => item_s(rcv_item[fld])).join("<td>"));
+                            } else {
+                                html.push(`<tr class='${job_type}'><td rowspan=2>`);
+                                html.push(rcv_key.map(fld => item_s(rcv_item[fld])).join("<td>"));
+                                html.push(`<tr class='${job_type}'><td colspan=${rcv_key.length - 1}><table class="rcv_key">`);
+                                html.push(`<tr class='${job_type}'><th>` + job_key.join("<th>"));
+                                for (const job_item of rcv_list_job) {
+                                    html.push(`<tr class='${job_type}'><td>`);
+                                    html.push(job_key.map(fld => item_s(job_item[fld])).join("<td>"));
+                                }
+                                html.push("</table>");
+                            }
+                        }
+                        html.push("</table>");
+                    }
+                    if (grp_list_snd.length === 0) {
+
+                    } else {
+                        html.push(`<tr><td colspan=${grp[0].length - 1}><table class="grp_list_snd">`);
+                        html.push("<tr><th>" + snd_key.map(key => snd_fname[key] || key).join("<th>"));
+                        for (const snd_item of grp_list_snd) {
+                            snd_item['DISP_JOBID'] = snd_item['JOBID'];
+                            snd_item['DISP_EJOBID'] = snd_item['EJOBID'];
+                            snd_item['DISP_PREJOBID'] = snd_item['PREJOBID'];
+                            let snd_list_job = job[1].filter(job_item => job_item['JOB'] == snd_item['JOBID']);
+                            let snd_list_ejob = job[1].filter(job_item => job_item['JOB'] == snd_item['EJOBID']);
+                            let snd_list_prejob = job[1].filter(job_item => job_item['JOB'] == snd_item['PREJOBID']);
+                            let job_type = 'JT_NOR';
+                            if (snd_item['SNDFILE'] && snd_item['SNDFILE'].match(/^T/)) {
+                                job_type = 'JT_TST';
+                            }
+                            if (snd_list_job.length === 0 && (snd_item['JOBID'] || '').trim().length !== 0) {
+                                job_type += " error";
+                                snd_item['DISP_JOBID'] = `<span class='error'>${snd_item['JOBID']}</span>`;
+                            }
+                            if (snd_list_ejob.length === 0 && (snd_item['EJOBID'] || '').trim().length !== 0) {
+                                job_type += " error";
+                                snd_item['DISP_EJOBID'] = `<span class='error'>${snd_item['EJOBID']}</span>`;
+                            }
+                            if (snd_list_prejob.length === 0 && (snd_item['PREJOBID'] || '').trim().length !== 0) {
+                                job_type += " error";
+                                snd_item['DISP_PREJOBID'] = `<span class='error'>${snd_item['PREJOBID']}</span>`;
+                            }
+                            snd_list_job = snd_list_job.concat(snd_list_ejob);
+                            snd_list_job = snd_list_job.concat(snd_list_prejob);
+                            if (snd_list_job.length === 0) {
+                                html.push(`<tr class='${job_type}'><td>`);
+                                html.push(snd_key.map(fld => item_s(snd_item[fld])).join("<td>"));
+                            } else {
+                                html.push(`<tr class='${job_type}'><td rowspan=2>`);
+                                html.push(snd_key.map(fld => item_s(snd_item[fld])).join("<td>"));
+                                html.push(`<tr class='${job_type}'><td colspan=${snd_key.length - 1}><table class="snd_key">`);
+                                html.push(`<tr class='${job_type}'><th>` + job_key.join("<th>"));
+                                for (const job_item of snd_list_job) {
+                                    html.push(`<tr class='${job_type}'><td>`);
+                                    html.push(job_key.map(fld => item_s(job_item[fld])).join("<td>"));
+                                }
+                                html.push("</table>");
+                            }
+                        }
+                        html.push("</table>");
+                    }
+                    html.push("</table>");
+                }
+            }
+        }
+        html.push("</table>");
+        let e = document.getElementById("content");
+        e.innerHTML = html.join("");
+    }
+
+    async function load(type) {
+        const decodeAsText = (arrayBuffer, encoding = null) => new TextDecoder(encoding).decode(arrayBuffer);
+        const res = await fetch(`hulft_${type}.out`);
+        const data = await res.arrayBuffer();
+        return loaddata(decodeAsText(data, 'shift-jis'));
+    }
+    async function start() {
+        createDom(
+            await load('hst'),
+            await load('job'),
+            await load('rcv'),
+            await load('snd'),
+            await load('tgrp')
+        );
+    }
+
+    function item_s(item) {
+        if (item instanceof Array) {
+            return item.join(",");
+        } else {
+            return item;
+        }
+    }
+    //start();
+</script>
